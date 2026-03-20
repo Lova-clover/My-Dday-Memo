@@ -10,19 +10,19 @@ const bodyFont = Noto_Sans_KR({
 
 export const metadata = {
   title: {
-    default: "짱귀요미 오리 D-day",
-    template: "%s | 짱귀요미 오리 D-day",
+    default: "나만의 D-DAY",
+    template: "%s | 나만의 D-DAY",
   },
-  description: "모바일 감성은 그대로 두고, 데스크톱에서는 더 넓고 정돈된 D-day + 메모 보드로 쓰는 오리 메모 앱",
+  description: "모바일과 데스크톱에서 함께 쓰는 나만의 D-DAY 메모 보드",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/duck-hero.png",
-    apple: "/duck-hero.png",
+    icon: "/my-dday-logo.png",
+    apple: "/my-dday-logo.png",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "오리 D-day",
+    title: "나만의 D-DAY",
   },
 };
 

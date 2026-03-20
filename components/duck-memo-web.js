@@ -32,6 +32,8 @@ const FILTERS = [
   { value: "past", label: "지난 기록" },
 ];
 
+const BRAND_NAME = "나만의 D-DAY";
+const BRAND_LOGO = "/my-dday-logo.png";
 const MOBILE_UA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Windows Phone/i;
 
 function createId() {
@@ -334,11 +336,11 @@ function LoadingShell() {
             <div className={s.heroRow}>
               <div className={s.brandBlock}>
                 <div className={s.brandMark}>
-                  <img alt="짱귀요미오리 로고" className={s.duckImg} height="72" loading="eager" src="/duck-hero.png" width="72" />
+                  <img alt={`${BRAND_NAME} 로고`} className={s.duckImg} height="72" loading="eager" src={BRAND_LOGO} width="72" />
                 </div>
                 <div>
                   <div className={s.heroEyebrow}>Desktop board</div>
-                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY 보드</h1>
+                  <h1 className={s.heroTitle}>{BRAND_NAME} 보드</h1>
                   <p className={s.heroLead}>모바일 원본 느낌을 유지한 채 데스크톱 보드를 불러오는 중이에요.</p>
                 </div>
               </div>
@@ -581,11 +583,11 @@ export default function DuckMemoWeb() {
             <div className={s.heroRow}>
               <div className={s.brandBlock}>
                 <div className={s.brandMark}>
-                  <img alt="짱귀요미오리 로고" className={s.duckImg} height="72" loading="eager" src="/duck-hero.png" width="72" />
+                  <img alt={`${BRAND_NAME} 로고`} className={s.duckImg} height="72" loading="eager" src={BRAND_LOGO} width="72" />
                 </div>
                 <div className={s.heroText}>
                   <div className={s.heroEyebrow}>Desktop board</div>
-                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY</h1>
+                  <h1 className={s.heroTitle}>{BRAND_NAME}</h1>
                   <p className={s.heroLead}>필요한 메모와 일정만 차분하게 정리하는 데스크톱 보드예요.</p>
                   <div className={s.heroDate}>{todayLabel}</div>
                 </div>

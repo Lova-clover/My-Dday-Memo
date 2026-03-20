@@ -1,5 +1,5 @@
-const CACHE_NAME = "duck-memo-shell-v3";
-const APP_SHELL = ["/", "/web", "/dday-v3.html", "/manifest.webmanifest", "/duck-hero.png", "/profile-duck.png"];
+const CACHE_NAME = "duck-memo-shell-v4";
+const APP_SHELL = ["/", "/web", "/dday-v3.html", "/manifest.webmanifest", "/my-dday-logo.png", "/profile-duck.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

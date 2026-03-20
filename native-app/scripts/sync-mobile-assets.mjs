@@ -6,14 +6,14 @@ const projectRoot = path.resolve(nativeRoot, "..");
 const sourceHtmlPath = path.join(projectRoot, "public", "dday-v3.html");
 const targetDir = path.join(nativeRoot, "web");
 const targetHtmlPath = path.join(targetDir, "index.html");
-const assetFiles = ["duck-hero.png", "profile-duck.png"];
+const assetFiles = ["my-dday-logo.png", "profile-duck.png"];
 
 await fs.mkdir(targetDir, { recursive: true });
 
 let html = await fs.readFile(sourceHtmlPath, "utf8");
 
 html = html
-  .replace(/<title>[\s\S]*?<\/title>/, "<title>짱귀요미오리 D-DAY APP</title>")
+  .replace(/<title>[\s\S]*?<\/title>/, "<title>나만의 D-DAY APP</title>")
   .replace(/<link rel="manifest"[^>]*>\s*/g, "")
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/g, "")
   .replace(/<meta name="theme-color"[^>]*>\s*/g, "")
