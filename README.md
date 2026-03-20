@@ -3,17 +3,19 @@
 > 안드로이드 앱이 중심인 D-DAY + 메모 프로젝트입니다. 웹은 빠르게 기록하고 정리하기 위한 보조 보드이고, 실제 사용의 중심은 설치형 앱입니다.
 
 <p align="center">
-  <strong>기록은 웹에서 빠르게, 사용은 앱에서 안정적으로.</strong><br />
-  개인 사용에 맞춘 로컬 중심 D-DAY + 메모 앱입니다.
+  <img src="docs/images/mobile-app-main.jpeg" width="260" alt="나만의 D-DAY 모바일 앱 메인 화면" />
 </p>
 
 <p align="center">
-  <img src="docs/images/mobile-app-main.jpeg" width="240" alt="나만의 D-DAY 모바일 앱 메인 화면" />
-  <img src="docs/images/desktop-web-board.jpeg" width="620" alt="나만의 D-DAY 데스크톱 웹 보드" />
+  <sub>모바일에서는 날짜 없는 메모와 날짜 있는 일정을 한 화면에서 빠르게 확인하고 기록할 수 있습니다.</sub>
 </p>
 
 <p align="center">
-  <sub>왼쪽은 모바일 메인 화면, 오른쪽은 PC에서 길게 적고 정리하기 위한 데스크톱 웹 보드입니다.</sub>
+  <img src="docs/images/desktop-web-board.jpeg" width="760" alt="나만의 D-DAY 데스크톱 웹 보드" />
+</p>
+
+<p align="center">
+  <sub>데스크톱 웹 보드는 더 넓은 화면에서 길게 적고 정리하기 쉽게 만든 보조 입력용 화면입니다.</sub>
 </p>
 
 <p align="center">
