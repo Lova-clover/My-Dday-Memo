@@ -7,3 +7,4 @@ out
 *.log
 .edge-preview-*
 duck-*.png
+native-app/web/

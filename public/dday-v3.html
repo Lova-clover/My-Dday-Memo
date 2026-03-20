@@ -62,6 +62,7 @@ body{font-family:"Nunito",sans-serif;background:#FFF9F0;min-height:100vh}
 .search-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
 .tool-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .tool-btn{
+  display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
   border:none;border-radius:12px;padding:8px 12px;cursor:pointer;
   font-family:"Nunito",sans-serif;font-size:12px;font-weight:900;
   background:white;color:#92400E;box-shadow:0 2px 8px rgba(0,0,0,.06)
@@ -315,6 +316,7 @@ body{font-family:"Nunito",sans-serif;background:#FFF9F0;min-height:100vh}
     <div class="tool-row">
       <button class="tool-btn" onclick="exportData()">내보내기</button>
       <button class="tool-btn primary" onclick="document.getElementById('importFile').click()">가져오기</button>
+      <a class="tool-btn" href="/app">APP 받기</a>
       <input id="importFile" type="file" accept="application/json,.json" onchange="importData(event)" hidden>
     </div>
   </div>

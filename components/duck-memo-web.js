@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Link from "next/link";
 import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
 import s from "./duck-memo-web.module.css";
 
@@ -334,7 +334,7 @@ function LoadingShell() {
             <div className={s.heroRow}>
               <div className={s.brandBlock}>
                 <div className={s.brandMark}>
-                  <Image alt="짱귀요미오리 로고" className={s.duckImg} height={72} src="/duck-hero.png" width={72} />
+                  <img alt="짱귀요미오리 로고" className={s.duckImg} height="72" loading="eager" src="/duck-hero.png" width="72" />
                 </div>
                 <div>
                   <div className={s.heroEyebrow}>Desktop board</div>
@@ -361,8 +361,6 @@ export default function DuckMemoWeb() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState(emptyDraft());
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const [isStandalone, setIsStandalone] = useState(false);
   const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
@@ -383,49 +381,15 @@ export default function DuckMemoWeb() {
       return undefined;
     }
 
-    const displayModeQuery = window.matchMedia("(display-mode: standalone)");
-
-    const syncStandalone = () => {
-      setIsStandalone(displayModeQuery.matches || Boolean(window.navigator.standalone));
-    };
-
     const onStorage = (event) => {
       if (event.key === STORAGE_KEY) {
         setItems(loadItems(false));
       }
     };
-
-    const onBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setInstallPrompt(event);
-    };
-
-    const onInstalled = () => {
-      setInstallPrompt(null);
-      setIsStandalone(true);
-    };
-
-    syncStandalone();
     window.addEventListener("storage", onStorage);
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-
-    if (displayModeQuery.addEventListener) {
-      displayModeQuery.addEventListener("change", syncStandalone);
-    } else if (displayModeQuery.addListener) {
-      displayModeQuery.addListener(syncStandalone);
-    }
 
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-
-      if (displayModeQuery.removeEventListener) {
-        displayModeQuery.removeEventListener("change", syncStandalone);
-      } else if (displayModeQuery.removeListener) {
-        displayModeQuery.removeListener(syncStandalone);
-      }
     };
   }, []);
 
@@ -462,8 +426,6 @@ export default function DuckMemoWeb() {
   const totalLabel = normalizedQuery ? `검색 ${filteredItems.length}개 · 전체 ${items.length}개` : `전체 ${items.length}개`;
   const canReset = activeFilter !== "all" || Boolean(query.trim());
   const pastExpanded = activeFilter === "past" || pastOpen;
-  const timelineItems = upcomingItems.slice(0, 4);
-
   const openAdd = (offset = 0) => {
     setEditId(null);
     setDraft({ ...emptyDraft(), date: todayISO(offset), hasDate: true });
@@ -517,20 +479,6 @@ export default function DuckMemoWeb() {
     startTransition(() => {
       setItems((current) => current.filter((item) => item.id !== id));
     });
-  };
-
-  const installApp = async () => {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      await installPrompt.userChoice;
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      window.alert(
-        "브라우저 메뉴에서 '홈 화면에 추가' 또는 '설치'를 누르면 앱처럼 쓸 수 있어요.",
-      );
-    }
   };
 
   const exportItems = () => {
@@ -633,15 +581,12 @@ export default function DuckMemoWeb() {
             <div className={s.heroRow}>
               <div className={s.brandBlock}>
                 <div className={s.brandMark}>
-                  <Image alt="짱귀요미오리 로고" className={s.duckImg} height={72} src="/duck-hero.png" width={72} />
+                  <img alt="짱귀요미오리 로고" className={s.duckImg} height="72" loading="eager" src="/duck-hero.png" width="72" />
                 </div>
                 <div className={s.heroText}>
                   <div className={s.heroEyebrow}>Desktop board</div>
-                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY 보드</h1>
-                  <p className={s.heroLead}>
-                    모바일 원본의 말랑한 분위기는 살리고, 컴퓨터에서는 더 넓고 정돈된 보드로 보이도록 다듬은
-                    버전이에요.
-                  </p>
+                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY</h1>
+                  <p className={s.heroLead}>필요한 메모와 일정만 차분하게 정리하는 데스크톱 보드예요.</p>
                   <div className={s.heroDate}>{todayLabel}</div>
                 </div>
               </div>
@@ -651,19 +596,19 @@ export default function DuckMemoWeb() {
                   {todayItems.length ? `오늘 ${todayItems.length}개` : "오늘 일정 없음"}
                 </div>
                 <div className={s.totalTxt}>{totalLabel}</div>
-                {nextUpcoming ? (
-                  <div className={s.nextDue}>
-                    가장 가까운 일정
-                    <strong>
-                      {nextUpcoming.title} · {relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly)}
-                    </strong>
-                  </div>
-                ) : (
-                  <div className={s.nextDue}>
-                    가장 가까운 일정
-                    <strong>아직 비어 있어요</strong>
-                  </div>
-                )}
+                <div className={s.heroMiniList}>
+                  <span>고정 {fixedItems.length}</span>
+                  <span>예정 {upcomingItems.length}</span>
+                  <span>이번 주 {weekCount}</span>
+                </div>
+                <div className={s.heroLinkRow}>
+                  <Link className={s.heroPrimaryLink} href="/app">
+                    APP 다운로드
+                  </Link>
+                  <Link className={s.heroSecondaryLink} href="/dday-v3.html">
+                    모바일 원본
+                  </Link>
+                </div>
               </div>
             </div>
 
@@ -701,24 +646,24 @@ export default function DuckMemoWeb() {
 
             <div className={s.statsRow}>
               <div className={s.statCard}>
-                <div className={s.statLabel}>오늘 일정</div>
+                <div className={s.statLabel}>전체 보드</div>
+                <div className={s.statValue}>{items.length}개</div>
+                <div className={s.statHint}>지금 저장된 모든 메모와 일정</div>
+              </div>
+              <div className={s.statCard}>
+                <div className={s.statLabel}>오늘 집중</div>
                 <div className={s.statValue}>{todayItems.length}개</div>
-                <div className={s.statHint}>지금 바로 챙겨야 하는 카드</div>
+                <div className={s.statHint}>지금 바로 확인해야 하는 카드</div>
               </div>
               <div className={s.statCard}>
-                <div className={s.statLabel}>고정 메모</div>
-                <div className={s.statValue}>{fixedItems.length}개</div>
-                <div className={s.statHint}>날짜 없이 오래 두고 보는 메모</div>
-              </div>
-              <div className={s.statCard}>
-                <div className={s.statLabel}>이번 주</div>
-                <div className={s.statValue}>{weekCount}개</div>
-                <div className={s.statHint}>7일 안에 다가오는 일정</div>
+                <div className={s.statLabel}>가장 가까운 일정</div>
+                <div className={s.statValue}>{nextUpcoming ? relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly) : "-"}</div>
+                <div className={s.statHint}>{nextUpcoming ? nextUpcoming.title : "예정된 일정이 아직 없어요."}</div>
               </div>
               <div className={s.statCard}>
                 <div className={s.statLabel}>급한 일정</div>
                 <div className={s.statValue}>{urgentUpcomingCount}개</div>
-                <div className={s.statHint}>3일 안에 마감되는 항목</div>
+                <div className={s.statHint}>3일 안에 다가오는 일정</div>
               </div>
             </div>
           </div>
@@ -857,9 +802,7 @@ export default function DuckMemoWeb() {
         <aside className={s.sideRail}>
           <div className={`${s.panel} ${s.panelStrong}`}>
             <div className={s.panelEyebrow}>Board summary</div>
-            <div className={s.panelHero}>
-              {todayItems.length ? `오늘 처리할 일정이 ${todayItems.length}개 있어요.` : "오늘 급한 일정은 없어요."}
-            </div>
+            <div className={s.panelHero}>{todayItems.length ? `오늘 처리할 일정 ${todayItems.length}개` : "오늘은 한결 여유로운 보드예요."}</div>
             <div className={s.panelText}>
               {nextUpcoming
                 ? `가장 가까운 일정은 "${nextUpcoming.title}"이고 ${relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly)} 상태예요.`
@@ -883,7 +826,7 @@ export default function DuckMemoWeb() {
 
           <div className={s.panel}>
             <div className={s.panelTitle}>빠르게 추가하기</div>
-            <div className={s.panelText}>컴퓨터에서는 새 창처럼 열고 바로 입력할 수 있게 가장 많이 쓰는 액션만 모아뒀어요.</div>
+            <div className={s.panelText}>자주 쓰는 입력 흐름만 남겨서 데스크톱에서 바로 적고 닫기 편하게 정리했어요.</div>
             <div className={s.quickRow}>
               {QUICK_DATES.map((item) => (
                 <button className={s.quickBtn} key={item.label} onClick={() => openAdd(item.offset)} type="button">
@@ -900,9 +843,10 @@ export default function DuckMemoWeb() {
           </div>
 
           <div className={s.panel}>
-            <div className={s.panelTitle}>기기 옮기기</div>
+            <div className={s.panelTitle}>백업과 앱</div>
             <div className={s.panelText}>
-              컴퓨터에서 JSON으로 내보내고, 휴대폰의 모바일 버전에서 가져오면 그대로 이어서 쓸 수 있어요.
+              웹은 계속 브라우저에서 보고, 앱은 별도로 다운로드할 수 있게 분리해뒀어요. 데이터 이동은 JSON
+              내보내기와 가져오기로 이어가면 됩니다.
             </div>
             <div className={s.quickRow}>
               <button className={s.quickBtn} onClick={exportItems} type="button">
@@ -913,55 +857,17 @@ export default function DuckMemoWeb() {
               </button>
             </div>
             <input accept="application/json,.json" hidden onChange={importItems} ref={importInputRef} type="file" />
-          </div>
-
-          <div className={s.panel}>
-            <div className={s.panelTitle}>앱처럼 설치하기</div>
-            <div className={s.panelText}>
-              {isStandalone
-                ? "이미 홈 화면 앱으로 사용 중이에요."
-                : "Vercel에 배포한 뒤 브라우저 메뉴의 설치 또는 홈 화면 추가 기능으로 앱처럼 쓸 수 있어요."}
+            <div className={s.panelActionStack}>
+              <Link className={s.secondaryBtn} href="/app">
+                APP 다운로드 페이지
+              </Link>
+              <Link className={s.mobileLink} href="/dday-v3.html">
+                모바일 원본 보기
+              </Link>
             </div>
-            <button className={s.installBtn} onClick={installApp} type="button">
-              {installPrompt ? "설치 진행하기" : "설치 방법 보기"}
-            </button>
-          </div>
-
-          <div className={s.panel}>
-            <div className={s.panelTitle}>다가오는 일정 미리보기</div>
-            {timelineItems.length ? (
-              <div className={s.timelineList}>
-                {timelineItems.map((item) => (
-                  <div className={s.timelineItem} key={item.id}>
-                    <span className={s.timelineBadge}>{relativeLabel(item.date, item.repeatYearly)}</span>
-                    <div className={s.timelineText}>
-                      <strong>{item.title}</strong>
-                      <span>{formatDate(item.date, item.repeatYearly)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className={s.panelText}>다가오는 일정이 생기면 이곳에 먼저 보여드릴게요.</div>
-            )}
-          </div>
-
-          <div className={`${s.panel} ${s.mascotCard}`}>
-            <Image alt="짱귀요미오리 마스코트" className={s.mascotImg} height={220} src="/profile-duck.png" width={220} />
-            <div className={s.panelTitle}>모바일 원본도 그대로 있어요</div>
-            <div className={s.panelText}>
-              모바일 감성을 더 좋아하면 원래 화면으로 바로 들어가서 그대로 사용할 수 있어요.
-            </div>
-            <a className={s.mobileLink} href="/dday-v3.html">
-              모바일 원본 보기
-            </a>
           </div>
         </aside>
       </main>
-
-      <button className={s.fab} onClick={() => openAdd(0)} type="button">
-        +
-      </button>
 
       {modalOpen ? (
         <div className={s.overlay} onClick={(event) => event.target === event.currentTarget && closeModal()} role="presentation">
