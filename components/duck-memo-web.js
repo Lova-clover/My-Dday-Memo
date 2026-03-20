@@ -10,11 +10,11 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const COLORS = [
   { bg: "#FFF7ED", left: "#F97316", memo: "#FFF3E8" },
-  { bg: "#FFFBEB", left: "#FBBF24", memo: "#FFFBEB" },
-  { bg: "#F0FDF4", left: "#22C55E", memo: "#F0FDF4" },
-  { bg: "#EFF6FF", left: "#3B82F6", memo: "#EFF6FF" },
-  { bg: "#FDF4FF", left: "#A855F7", memo: "#FDF4FF" },
-  { bg: "#FFF1F2", left: "#F43F5E", memo: "#FFF1F2" },
+  { bg: "#FFFBEB", left: "#FBBF24", memo: "#FFF9D8" },
+  { bg: "#F0FDF4", left: "#22C55E", memo: "#E9FBEF" },
+  { bg: "#EFF6FF", left: "#3B82F6", memo: "#EAF3FF" },
+  { bg: "#FDF4FF", left: "#A855F7", memo: "#F9EAFF" },
+  { bg: "#FFF1F2", left: "#F43F5E", memo: "#FFE7EC" },
 ];
 
 const QUICK_DATES = [
@@ -23,6 +23,16 @@ const QUICK_DATES = [
   { label: "+3일", offset: 3 },
   { label: "+7일", offset: 7 },
 ];
+
+const FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "today", label: "오늘" },
+  { value: "fixed", label: "고정 메모" },
+  { value: "upcoming", label: "예정" },
+  { value: "past", label: "지난 기록" },
+];
+
+const MOBILE_UA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Windows Phone/i;
 
 function createId() {
   try {
@@ -45,22 +55,54 @@ function parseDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function dday(value) {
-  const date = parseDate(value);
-  if (!date) return null;
+function annualOccurrence(value, year) {
+  const base = parseDate(value);
+  if (!base) return null;
+
+  const month = base.getMonth();
+  const day = base.getDate();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(day, lastDay));
+}
+
+function effectiveDate(value, repeatYearly = false) {
+  const base = parseDate(value);
+  if (!base) return null;
+  if (!repeatYearly) return base;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  let candidate = annualOccurrence(value, today.getFullYear());
+  candidate.setHours(0, 0, 0, 0);
+
+  if (candidate < today) {
+    candidate = annualOccurrence(value, today.getFullYear() + 1);
+    candidate.setHours(0, 0, 0, 0);
+  }
+
+  return candidate;
+}
+
+function dday(value, repeatYearly = false) {
+  const date = effectiveDate(value, repeatYearly);
+  if (!date) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   return Math.round((date.getTime() - today.getTime()) / DAY);
 }
 
-function fmt(value) {
+function formatDate(value, repeatYearly = false) {
   const date = parseDate(value);
-  if (!date) return "날짜 없음";
+  if (!date) return "날짜 없는 고정 메모";
+  if (repeatYearly) return `매년 ${date.getMonth() + 1}. ${date.getDate()}.`;
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}. (${WEEKDAYS[date.getDay()]})`;
 }
 
-function relative(value) {
-  const diff = dday(value);
+function relativeLabel(value, repeatYearly = false) {
+  const diff = dday(value, repeatYearly);
   if (diff === null) return "상시 메모";
   if (diff === 0) return "오늘";
   if (diff > 0) return `D-${diff}`;
@@ -69,6 +111,7 @@ function relative(value) {
 
 function normalizeItem(raw, index = 0) {
   if (!raw || typeof raw !== "object") return null;
+
   const title = typeof raw.title === "string" ? raw.title.trim() : "";
   if (!title) return null;
 
@@ -80,20 +123,46 @@ function normalizeItem(raw, index = 0) {
     date: typeof raw.date === "string" && raw.date ? raw.date : null,
     memo: typeof raw.memo === "string" ? raw.memo.trim() : "",
     color,
+    repeatYearly: Boolean(raw.repeatYearly) && Boolean(raw.date),
   };
 }
 
 function sampleItems() {
   return [
-    { id: createId(), title: "프로젝트 마감", date: todayISO(2), memo: "최종 보고서 제출과 발표 준비", color: 0 },
-    { id: createId(), title: "매일 운동하기", date: null, memo: "스쿼트 50개, 플랭크 1분", color: 2 },
-    { id: createId(), title: "생일 파티", date: todayISO(14), memo: "케이크 예약과 선물 구매", color: 5 },
-    { id: createId(), title: "팀 미팅", date: todayISO(6), memo: "노트북과 발표자료 챙기기", color: 3 },
+    {
+      id: createId(),
+      title: "프로젝트 마감",
+      date: todayISO(2),
+      memo: "최종 점검하고 제출 파일까지 한 번에 정리하기",
+      color: 0,
+    },
+    {
+      id: createId(),
+      title: "매일 운동하기",
+      date: null,
+      memo: "저녁에 30분만이라도 꾸준히 몸 풀기",
+      color: 2,
+    },
+    {
+      id: createId(),
+      title: "엄마 생신",
+      date: todayISO(14),
+      memo: "매년 돌아오는 일정이라 선물과 식사 예약 미리 챙기기",
+      color: 5,
+      repeatYearly: true,
+    },
+    {
+      id: createId(),
+      title: "팀 미팅 준비",
+      date: todayISO(6),
+      memo: "발표 자료 검토하고 질문 포인트 메모",
+      color: 3,
+    },
   ];
 }
 
 function loadItems(seed = true) {
-  if (typeof window === "undefined") return sampleItems();
+  if (typeof window === "undefined") return [];
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
 
@@ -113,13 +182,32 @@ function loadItems(seed = true) {
 
 function persist(items) {
   if (typeof window === "undefined") return;
+
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {}
 }
 
+function emptyDraft() {
+  return { title: "", date: todayISO(0), memo: "", color: 1, hasDate: true, repeatYearly: false };
+}
+
+function draftFromItem(item) {
+  if (!item) return emptyDraft();
+
+  return {
+    title: item.title,
+    date: item.date || todayISO(0),
+    memo: item.memo || "",
+    color: item.color ?? 1,
+    hasDate: Boolean(item.date),
+    repeatYearly: Boolean(item.repeatYearly),
+  };
+}
+
 function cardBadge(item) {
-  const diff = dday(item.date);
+  const diff = dday(item.date, item.repeatYearly);
+
   if (diff === null) return { label: "고정", className: s.badgePin };
   if (diff === 0) return { label: "D-0", className: s.badgeToday };
   if (diff <= 3) return { label: `D-${diff}`, className: s.badgeUrgent };
@@ -128,41 +216,12 @@ function cardBadge(item) {
   return { label: `D+${Math.abs(diff)}`, className: s.badgePast };
 }
 
-function emptyDraft() {
-  return { title: "", date: todayISO(0), memo: "", color: 1, hasDate: true };
-}
-
-function draftFromItem(item) {
-  if (!item) return emptyDraft();
-  return {
-    title: item.title,
-    date: item.date || todayISO(0),
-    memo: item.memo || "",
-    color: item.color ?? 1,
-    hasDate: Boolean(item.date),
-  };
-}
-
-function MemoCard({ item, onEdit, onDelete }) {
-  const color = COLORS[item.color ?? 1];
-  const badge = cardBadge(item);
-
+function EmptyState({ title, description }) {
   return (
-    <div className={s.itemCard} style={{ background: color.bg, borderLeftColor: color.left, borderColor: `${color.left}22` }}>
-      <div className={s.itemActions}>
-        <button className={s.actBtn} onClick={() => onEdit(item)} type="button">
-          수정
-        </button>
-        <button className={`${s.actBtn} ${s.deleteBtn}`} onClick={() => onDelete(item.id)} type="button">
-          삭제
-        </button>
-      </div>
-      <div className={s.itemTop}>
-        <div className={s.itemTitle}>{item.title}</div>
-        <span className={`${s.itemBadge} ${badge.className}`}>{badge.label}</span>
-      </div>
-      <div className={s.itemDate}>{item.date ? fmt(item.date) : "날짜 없음 · 상단 고정 메모"}</div>
-      {item.memo ? <div className={s.itemMemo} style={{ background: color.memo }}>{item.memo}</div> : null}
+    <div className={s.emptyState}>
+      <div className={s.emptyMark}>오리멍</div>
+      <div className={s.emptyTitle}>{title}</div>
+      <div className={s.emptyText}>{description}</div>
     </div>
   );
 }
@@ -171,27 +230,133 @@ function TodayCard({ item, onEdit, onDelete }) {
   const color = COLORS[item.color ?? 1];
 
   return (
-    <div className={s.todayCard} style={{ borderColor: color.left }}>
-      <div className={s.todayActions}>
-        <button className={s.actBtn} onClick={() => onEdit(item)} type="button">
+    <article
+      className={s.todayCard}
+      style={{
+        background: `linear-gradient(135deg, #fffef5 0%, ${color.bg} 100%)`,
+        borderColor: color.left,
+        boxShadow: `0 18px 40px ${color.left}20`,
+      }}
+    >
+      <div className={s.cardActions}>
+        <button className={s.actionBtn} onClick={() => onEdit(item)} type="button">
           수정
         </button>
-        <button className={`${s.actBtn} ${s.deleteBtn}`} onClick={() => onDelete(item.id)} type="button">
+        <button className={`${s.actionBtn} ${s.actionDelete}`} onClick={() => onDelete(item.id)} type="button">
           삭제
         </button>
       </div>
-      <div className={s.todayTag}>오늘 확인</div>
+
+      <div className={s.todayTag}>오늘 바로 확인</div>
       <div className={s.todayTitle}>{item.title}</div>
-      <div className={s.todayDateTxt}>{fmt(item.date)}</div>
+      <div className={s.todayDate}>{formatDate(item.date, item.repeatYearly)}</div>
       {item.memo ? <div className={s.todayMemo}>{item.memo}</div> : null}
+      <div className={s.todayFoot}>
+        <span className={s.softPill}>오늘 마감</span>
+        {item.repeatYearly ? <span className={s.repeatChip}>매년 반복</span> : null}
+      </div>
+    </article>
+  );
+}
+
+function MemoCard({ item, onEdit, onDelete }) {
+  const color = COLORS[item.color ?? 1];
+  const badge = cardBadge(item);
+
+  return (
+    <article
+      className={s.memoCard}
+      style={{
+        background: color.bg,
+        borderColor: `${color.left}26`,
+        borderLeftColor: color.left,
+      }}
+    >
+      <div className={s.cardActions}>
+        <button className={s.actionBtn} onClick={() => onEdit(item)} type="button">
+          수정
+        </button>
+        <button className={`${s.actionBtn} ${s.actionDelete}`} onClick={() => onDelete(item.id)} type="button">
+          삭제
+        </button>
+      </div>
+
+      <div className={s.memoTop}>
+        <div className={s.memoTitle}>{item.title}</div>
+        <span className={`${s.memoBadge} ${badge.className}`}>{badge.label}</span>
+      </div>
+
+      <div className={s.memoMeta}>
+        <span className={s.metaPill}>{relativeLabel(item.date, item.repeatYearly)}</span>
+        <span className={s.memoDate}>{formatDate(item.date, item.repeatYearly)}</span>
+        {item.repeatYearly ? <span className={s.repeatChip}>매년 반복</span> : null}
+      </div>
+
+      {item.memo ? (
+        <div className={s.memoBody} style={{ background: color.memo }}>
+          {item.memo}
+        </div>
+      ) : (
+        <div className={s.memoHint}>메모 내용은 비어 있어요. 제목만 저장된 카드예요.</div>
+      )}
+    </article>
+  );
+}
+
+function PastCard({ item, onEdit, onDelete }) {
+  return (
+    <article className={s.pastCard}>
+      <div className={s.cardActions}>
+        <button className={s.actionBtn} onClick={() => onEdit(item)} type="button">
+          수정
+        </button>
+        <button className={`${s.actionBtn} ${s.actionDelete}`} onClick={() => onDelete(item.id)} type="button">
+          삭제
+        </button>
+      </div>
+
+      <div className={s.pastTop}>
+        <div className={s.pastTitle}>{item.title}</div>
+        <span className={s.pastBadge}>{relativeLabel(item.date, item.repeatYearly)}</span>
+      </div>
+      <div className={s.pastDate}>{formatDate(item.date, item.repeatYearly)}</div>
+      {item.memo ? <div className={s.pastMemo}>{item.memo}</div> : null}
+    </article>
+  );
+}
+
+function LoadingShell() {
+  return (
+    <div className={s.page}>
+      <header className={s.header}>
+        <div className={s.headerInner}>
+          <div className={s.heroCard}>
+            <div className={s.heroRow}>
+              <div className={s.brandBlock}>
+                <div className={s.brandMark}>
+                  <Image alt="짱귀요미오리 로고" className={s.duckImg} height={72} src="/duck-hero.png" width={72} />
+                </div>
+                <div>
+                  <div className={s.heroEyebrow}>Desktop board</div>
+                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY 보드</h1>
+                  <p className={s.heroLead}>모바일 원본 느낌을 유지한 채 데스크톱 보드를 불러오는 중이에요.</p>
+                </div>
+              </div>
+            </div>
+            <div className={s.loadingBar} />
+          </div>
+        </div>
+      </header>
     </div>
   );
 }
 
 export default function DuckMemoWeb() {
   const importInputRef = useRef(null);
+  const [ready, setReady] = useState(false);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [pastOpen, setPastOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -202,23 +367,32 @@ export default function DuckMemoWeb() {
 
   useEffect(() => {
     setItems(loadItems());
+    setReady(true);
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     persist(items);
-  }, [items]);
+  }, [items, ready]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
-    const ua = window.navigator.userAgent || "";
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua) || window.innerWidth <= 820) {
+    if (MOBILE_UA.test(window.navigator.userAgent || "")) {
       window.location.replace("/dday-v3.html");
       return undefined;
     }
 
+    const displayModeQuery = window.matchMedia("(display-mode: standalone)");
+
+    const syncStandalone = () => {
+      setIsStandalone(displayModeQuery.matches || Boolean(window.navigator.standalone));
+    };
+
     const onStorage = (event) => {
-      if (event.key === STORAGE_KEY) setItems(loadItems(false));
+      if (event.key === STORAGE_KEY) {
+        setItems(loadItems(false));
+      }
     };
 
     const onBeforeInstallPrompt = (event) => {
@@ -231,36 +405,74 @@ export default function DuckMemoWeb() {
       setIsStandalone(true);
     };
 
-    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || Boolean(window.navigator.standalone));
+    syncStandalone();
     window.addEventListener("storage", onStorage);
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onInstalled);
+
+    if (displayModeQuery.addEventListener) {
+      displayModeQuery.addEventListener("change", syncStandalone);
+    } else if (displayModeQuery.addListener) {
+      displayModeQuery.addListener(syncStandalone);
+    }
 
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onInstalled);
+
+      if (displayModeQuery.removeEventListener) {
+        displayModeQuery.removeEventListener("change", syncStandalone);
+      } else if (displayModeQuery.removeListener) {
+        displayModeQuery.removeListener(syncStandalone);
+      }
     };
   }, []);
 
-  const filtered = items.filter((item) => {
-    const q = deferredQuery.trim().toLowerCase();
-    if (!q) return true;
-    return item.title.toLowerCase().includes(q) || item.memo.toLowerCase().includes(q);
-  });
+  const normalizedQuery = deferredQuery.trim().toLowerCase();
+  const filteredItems = normalizedQuery
+    ? items.filter((item) => item.title.toLowerCase().includes(normalizedQuery) || item.memo.toLowerCase().includes(normalizedQuery))
+    : items;
 
-  const todayItems = filtered.filter((item) => item.date && dday(item.date) === 0);
-  const fixedItems = filtered.filter((item) => !item.date);
-  const futureItems = filtered
-    .filter((item) => item.date && dday(item.date) > 0)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  const pastItems = filtered
-    .filter((item) => item.date && dday(item.date) < 0)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const todayItems = filteredItems.filter((item) => item.date && dday(item.date, item.repeatYearly) === 0);
+  const fixedItems = filteredItems.filter((item) => !item.date);
+  const upcomingItems = filteredItems
+    .filter((item) => item.date && dday(item.date, item.repeatYearly) > 0)
+    .sort((a, b) => effectiveDate(a.date, a.repeatYearly) - effectiveDate(b.date, b.repeatYearly));
+  const pastItems = filteredItems
+    .filter((item) => item.date && dday(item.date, item.repeatYearly) < 0)
+    .sort((a, b) => effectiveDate(b.date, b.repeatYearly) - effectiveDate(a.date, a.repeatYearly));
+
+  const nextUpcoming = upcomingItems[0] ?? null;
+  const urgentUpcomingCount = upcomingItems.filter((item) => {
+    const diff = dday(item.date, item.repeatYearly);
+    return diff !== null && diff <= 3;
+  }).length;
+  const weekCount = upcomingItems.filter((item) => {
+    const diff = dday(item.date, item.repeatYearly);
+    return diff !== null && diff <= 7;
+  }).length;
+  const countsByFilter = {
+    all: filteredItems.length,
+    today: todayItems.length,
+    fixed: fixedItems.length,
+    upcoming: upcomingItems.length,
+    past: pastItems.length,
+  };
+  const totalLabel = normalizedQuery ? `검색 ${filteredItems.length}개 · 전체 ${items.length}개` : `전체 ${items.length}개`;
+  const canReset = activeFilter !== "all" || Boolean(query.trim());
+  const pastExpanded = activeFilter === "past" || pastOpen;
+  const timelineItems = upcomingItems.slice(0, 4);
 
   const openAdd = (offset = 0) => {
     setEditId(null);
     setDraft({ ...emptyDraft(), date: todayISO(offset), hasDate: true });
+    setModalOpen(true);
+  };
+
+  const openPinnedAdd = () => {
+    setEditId(null);
+    setDraft({ ...emptyDraft(), hasDate: false, repeatYearly: false });
     setModalOpen(true);
   };
 
@@ -277,6 +489,7 @@ export default function DuckMemoWeb() {
 
   const saveDraft = (event) => {
     event.preventDefault();
+
     const title = draft.title.trim();
     if (!title) return;
 
@@ -286,6 +499,7 @@ export default function DuckMemoWeb() {
       date: draft.hasDate ? draft.date : null,
       memo: draft.memo.trim(),
       color: draft.color,
+      repeatYearly: draft.hasDate ? draft.repeatYearly : false,
     };
 
     startTransition(() => {
@@ -299,7 +513,10 @@ export default function DuckMemoWeb() {
 
   const deleteItem = (id) => {
     if (typeof window !== "undefined" && !window.confirm("정말 삭제할까요?")) return;
-    startTransition(() => setItems((current) => current.filter((item) => item.id !== id)));
+
+    startTransition(() => {
+      setItems((current) => current.filter((item) => item.id !== id));
+    });
   };
 
   const installApp = async () => {
@@ -310,18 +527,22 @@ export default function DuckMemoWeb() {
     }
 
     if (typeof window !== "undefined") {
-      window.alert("아이폰은 Safari 공유 메뉴의 '홈 화면에 추가', 크롬은 메뉴의 '앱 설치'를 사용하면 됩니다.");
+      window.alert(
+        "브라우저 메뉴에서 '홈 화면에 추가' 또는 '설치'를 누르면 앱처럼 쓸 수 있어요.",
+      );
     }
   };
 
   const exportItems = () => {
     if (typeof window === "undefined") return;
+
     const stamp = new Date().toISOString().replaceAll(":", "-");
     const payload = {
       exportedAt: new Date().toISOString(),
       source: "duck-memo",
       items,
     };
+
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -335,8 +556,11 @@ export default function DuckMemoWeb() {
 
   const mergeImportedItems = (incoming) => {
     const normalized = incoming.map(normalizeItem).filter(Boolean);
+
     if (!normalized.length) {
-      if (typeof window !== "undefined") window.alert("가져올 메모가 없어요.");
+      if (typeof window !== "undefined") {
+        window.alert("가져올 메모가 없어요.");
+      }
       return;
     }
 
@@ -376,112 +600,290 @@ export default function DuckMemoWeb() {
     }
   };
 
+  const selectFilter = (value) => {
+    setActiveFilter(value);
+    if (value === "past") {
+      setPastOpen(true);
+    }
+  };
+
+  const resetView = () => {
+    setQuery("");
+    setActiveFilter("all");
+  };
+
+  const handlePastToggleKeyDown = (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setPastOpen((current) => !current);
+  };
+
   const now = new Date();
   const todayLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 (${WEEKDAYS[now.getDay()]})`;
+
+  if (!ready) {
+    return <LoadingShell />;
+  }
 
   return (
     <div className={s.page}>
       <header className={s.header}>
         <div className={s.headerInner}>
-          <div className={s.duckRow}>
-                <Image alt="짱귀요미 오리" className={s.duckImg} height={64} src="/duck-hero.png" width={64} />
-            <div className={s.heroInfo}>
-              <div className={s.heroTitle}>짱귀요미 오리 D-DAY 웹</div>
-              <div className={s.heroDate}>{todayLabel}</div>
-            </div>
-            <div className={s.heroRight}>
-              <div className={`${s.todayPill} ${todayItems.length ? s.todayHas : s.todayNone}`}>
-                {todayItems.length ? `오늘 ${todayItems.length}개` : "오늘 없음"}
+          <div className={s.heroCard}>
+            <div className={s.heroRow}>
+              <div className={s.brandBlock}>
+                <div className={s.brandMark}>
+                  <Image alt="짱귀요미오리 로고" className={s.duckImg} height={72} src="/duck-hero.png" width={72} />
+                </div>
+                <div className={s.heroText}>
+                  <div className={s.heroEyebrow}>Desktop board</div>
+                  <h1 className={s.heroTitle}>짱귀요미오리 D-DAY 보드</h1>
+                  <p className={s.heroLead}>
+                    모바일 원본의 말랑한 분위기는 살리고, 컴퓨터에서는 더 넓고 정돈된 보드로 보이도록 다듬은
+                    버전이에요.
+                  </p>
+                  <div className={s.heroDate}>{todayLabel}</div>
+                </div>
               </div>
-              <div className={s.totalTxt}>전체 {items.length}개</div>
-            </div>
-          </div>
 
-          <div className={s.searchWrap}>
-            <input
-              className={s.searchInp}
-              onChange={(event) => startTransition(() => setQuery(event.target.value))}
-              placeholder="검색하기…"
-              value={query}
-            />
-            <span className={s.searchIco}>🔎</span>
+              <div className={s.heroMeta}>
+                <div className={`${s.todayPill} ${todayItems.length ? s.todayHas : s.todayNone}`}>
+                  {todayItems.length ? `오늘 ${todayItems.length}개` : "오늘 일정 없음"}
+                </div>
+                <div className={s.totalTxt}>{totalLabel}</div>
+                {nextUpcoming ? (
+                  <div className={s.nextDue}>
+                    가장 가까운 일정
+                    <strong>
+                      {nextUpcoming.title} · {relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly)}
+                    </strong>
+                  </div>
+                ) : (
+                  <div className={s.nextDue}>
+                    가장 가까운 일정
+                    <strong>아직 비어 있어요</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={s.toolbar}>
+              <div className={s.searchWrap}>
+                <span className={s.searchIco}>⌕</span>
+                <input
+                  className={s.searchInp}
+                  onChange={(event) => startTransition(() => setQuery(event.target.value))}
+                  placeholder="제목이나 메모로 검색하기"
+                  value={query}
+                />
+              </div>
+
+              <div className={s.filterWrap}>
+                {FILTERS.map((filter) => (
+                  <button
+                    className={`${s.filterBtn} ${activeFilter === filter.value ? s.filterBtnActive : ""}`}
+                    key={filter.value}
+                    onClick={() => selectFilter(filter.value)}
+                    type="button"
+                  >
+                    <span>{filter.label}</span>
+                    <span className={s.filterCount}>{countsByFilter[filter.value]}</span>
+                  </button>
+                ))}
+
+                {canReset ? (
+                  <button className={s.resetBtn} onClick={resetView} type="button">
+                    초기화
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className={s.statsRow}>
+              <div className={s.statCard}>
+                <div className={s.statLabel}>오늘 일정</div>
+                <div className={s.statValue}>{todayItems.length}개</div>
+                <div className={s.statHint}>지금 바로 챙겨야 하는 카드</div>
+              </div>
+              <div className={s.statCard}>
+                <div className={s.statLabel}>고정 메모</div>
+                <div className={s.statValue}>{fixedItems.length}개</div>
+                <div className={s.statHint}>날짜 없이 오래 두고 보는 메모</div>
+              </div>
+              <div className={s.statCard}>
+                <div className={s.statLabel}>이번 주</div>
+                <div className={s.statValue}>{weekCount}개</div>
+                <div className={s.statHint}>7일 안에 다가오는 일정</div>
+              </div>
+              <div className={s.statCard}>
+                <div className={s.statLabel}>급한 일정</div>
+                <div className={s.statValue}>{urgentUpcomingCount}개</div>
+                <div className={s.statHint}>3일 안에 마감되는 항목</div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
       <main className={s.content}>
         <div className={s.board}>
-          <section>
-            {todayItems.length ? (
-              <>
-                <div className={s.secHd}>
-                  <span>오늘</span>
-                  <span className={s.secCnt}>{todayItems.length}</span>
-                </div>
-                <div className={s.todayGrid}>
-                  {todayItems.map((item) => (
-                    <TodayCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
-                  ))}
-                </div>
-              </>
-            ) : null}
-          </section>
+          {!items.length ? (
+            <EmptyState title="아직 메모가 없어요" description="오른쪽 패널이나 플러스 버튼으로 첫 메모를 추가해보세요." />
+          ) : !filteredItems.length ? (
+            <EmptyState title="검색 결과가 없어요" description="다른 키워드로 찾거나 필터를 초기화해서 다시 확인해보세요." />
+          ) : (
+            <>
+              {activeFilter !== "fixed" && activeFilter !== "upcoming" && activeFilter !== "past" ? (
+                todayItems.length ? (
+                  <section className={s.sectionShell}>
+                    <div className={s.sectionHead}>
+                      <div className={s.sectionText}>
+                        <div className={s.sectionEyebrow}>Today focus</div>
+                        <div className={s.sectionTitleRow}>
+                          <h2 className={s.sectionTitle}>오늘</h2>
+                          <span className={s.sectionCount}>{todayItems.length}</span>
+                        </div>
+                        <p className={s.sectionDesc}>가장 먼저 확인해야 하는 D-DAY 카드만 따로 모았어요.</p>
+                      </div>
+                    </div>
+                    <div className={s.todayGrid}>
+                      {todayItems.map((item) => (
+                        <TodayCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
+                      ))}
+                    </div>
+                  </section>
+                ) : activeFilter === "today" ? (
+                  <section className={s.sectionShell}>
+                    <EmptyState title="오늘 일정이 없어요" description="오늘 처리할 항목이 없어서 한결 여유로운 보드예요." />
+                  </section>
+                ) : null
+              ) : null}
 
-          <section>
-            <div className={s.secHd}>
-              <span>고정 메모</span>
-              <span className={s.secCnt}>{fixedItems.length}</span>
-            </div>
-            {fixedItems.length ? (
-              <div className={s.cardGrid}>
-                {fixedItems.map((item) => (
-                  <MemoCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
-                ))}
-              </div>
-            ) : (
-              <div className={s.empty}>날짜 없는 메모는 여기에 모입니다.</div>
-            )}
-          </section>
+              {activeFilter !== "today" && activeFilter !== "upcoming" && activeFilter !== "past" ? (
+                fixedItems.length ? (
+                  <section className={s.sectionShell}>
+                    <div className={s.sectionHead}>
+                      <div className={s.sectionText}>
+                        <div className={s.sectionEyebrow}>Pinned memo</div>
+                        <div className={s.sectionTitleRow}>
+                          <h2 className={s.sectionTitle}>고정 메모</h2>
+                          <span className={s.sectionCount}>{fixedItems.length}</span>
+                        </div>
+                        <p className={s.sectionDesc}>날짜 없이 상단에 두고 자주 보는 메모들만 모아둔 영역이에요.</p>
+                      </div>
+                    </div>
+                    <div className={s.cardGrid}>
+                      {fixedItems.map((item) => (
+                        <MemoCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
+                      ))}
+                    </div>
+                  </section>
+                ) : activeFilter === "fixed" ? (
+                  <section className={s.sectionShell}>
+                    <EmptyState title="고정 메모가 없어요" description="반복해서 보는 체크리스트나 상시 메모를 추가해보세요." />
+                  </section>
+                ) : null
+              ) : null}
 
-          <section>
-            <div className={s.secHd}>
-              <span>D-DAY</span>
-              <span className={s.secCnt}>{futureItems.length}</span>
-            </div>
-            {futureItems.length ? (
-              <div className={s.cardGrid}>
-                {futureItems.map((item) => (
-                  <MemoCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
-                ))}
-              </div>
-            ) : (
-              <div className={s.empty}>다가오는 일정이 없습니다.</div>
-            )}
-          </section>
+              {activeFilter !== "today" && activeFilter !== "fixed" && activeFilter !== "past" ? (
+                upcomingItems.length ? (
+                  <section className={s.sectionShell}>
+                    <div className={s.sectionHead}>
+                      <div className={s.sectionText}>
+                        <div className={s.sectionEyebrow}>Upcoming</div>
+                        <div className={s.sectionTitleRow}>
+                          <h2 className={s.sectionTitle}>다가오는 일정</h2>
+                          <span className={s.sectionCount}>{upcomingItems.length}</span>
+                        </div>
+                        <p className={s.sectionDesc}>날짜가 가까운 순서대로 정렬해서 데스크톱에서 한눈에 보이게 만들었어요.</p>
+                      </div>
+                    </div>
+                    <div className={s.cardGrid}>
+                      {upcomingItems.map((item) => (
+                        <MemoCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
+                      ))}
+                    </div>
+                  </section>
+                ) : activeFilter === "upcoming" ? (
+                  <section className={s.sectionShell}>
+                    <EmptyState title="다가오는 일정이 없어요" description="미래 일정이 비어 있어서 지금은 고정 메모 위주로 정리하면 돼요." />
+                  </section>
+                ) : null
+              ) : null}
 
-          <section>
-            <div className={`${s.secHd} ${s.clickable}`} onClick={() => setPastOpen((current) => !current)} role="button" tabIndex={0}>
-              <span>지난 일정</span>
-              <span className={s.secCnt}>{pastItems.length}</span>
-              <span className={s.foldTxt}>{pastOpen ? "접기" : "펼치기"}</span>
-            </div>
-            {pastOpen && pastItems.length ? (
-              <div className={s.pastGrid}>
-                {pastItems.map((item) => (
-                  <MemoCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
-                ))}
-              </div>
-            ) : pastItems.length ? (
-              <div className={s.empty}>클릭해서 지난 일정 {pastItems.length}개 보기</div>
-            ) : (
-              <div className={s.empty}>지나간 일정이 없습니다.</div>
-            )}
-          </section>
+              {activeFilter === "past" || pastItems.length ? (
+                <section className={s.sectionShell}>
+                  <div className={s.sectionHead}>
+                    <div className={s.sectionText}>
+                      <div className={s.sectionEyebrow}>Archive</div>
+                      <div className={s.sectionTitleRow}>
+                        <h2 className={s.sectionTitle}>지난 기록</h2>
+                        <span className={s.sectionCount}>{pastItems.length}</span>
+                      </div>
+                      <p className={s.sectionDesc}>지나간 일정은 접어두고 필요할 때만 펼쳐보도록 정리했어요.</p>
+                    </div>
+
+                    {activeFilter !== "past" ? (
+                      <button
+                        className={s.foldBtn}
+                        onClick={() => setPastOpen((current) => !current)}
+                        onKeyDown={handlePastToggleKeyDown}
+                        type="button"
+                      >
+                        {pastExpanded ? "접기" : "펼치기"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {pastItems.length ? (
+                    pastExpanded ? (
+                      <div className={s.pastGrid}>
+                        {pastItems.map((item) => (
+                          <PastCard item={item} key={item.id} onDelete={deleteItem} onEdit={openEdit} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={s.foldHint}>지난 기록 {pastItems.length}개가 접혀 있어요.</div>
+                    )
+                  ) : (
+                    <EmptyState title="지난 일정이 없어요" description="지난 기록이 쌓이면 여기에서 차분하게 다시 볼 수 있어요." />
+                  )}
+                </section>
+              ) : null}
+            </>
+          )}
         </div>
 
         <aside className={s.sideRail}>
+          <div className={`${s.panel} ${s.panelStrong}`}>
+            <div className={s.panelEyebrow}>Board summary</div>
+            <div className={s.panelHero}>
+              {todayItems.length ? `오늘 처리할 일정이 ${todayItems.length}개 있어요.` : "오늘 급한 일정은 없어요."}
+            </div>
+            <div className={s.panelText}>
+              {nextUpcoming
+                ? `가장 가까운 일정은 "${nextUpcoming.title}"이고 ${relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly)} 상태예요.`
+                : "다가오는 일정이 아직 없어서 고정 메모 정리나 아이디어 수집에 집중하기 좋아요."}
+            </div>
+            <div className={s.summaryList}>
+              <div className={s.summaryItem}>
+                <span>전체 보드</span>
+                <strong>{items.length}개</strong>
+              </div>
+              <div className={s.summaryItem}>
+                <span>이번 주 일정</span>
+                <strong>{weekCount}개</strong>
+              </div>
+              <div className={s.summaryItem}>
+                <span>고정 메모</span>
+                <strong>{fixedItems.length}개</strong>
+              </div>
+            </div>
+          </div>
+
           <div className={s.panel}>
-            <div className={s.panelTitle}>빠른 추가</div>
+            <div className={s.panelTitle}>빠르게 추가하기</div>
+            <div className={s.panelText}>컴퓨터에서는 새 창처럼 열고 바로 입력할 수 있게 가장 많이 쓰는 액션만 모아뒀어요.</div>
             <div className={s.quickRow}>
               {QUICK_DATES.map((item) => (
                 <button className={s.quickBtn} key={item.label} onClick={() => openAdd(item.offset)} type="button">
@@ -490,50 +892,66 @@ export default function DuckMemoWeb() {
               ))}
             </div>
             <button className={s.primaryBtn} onClick={() => openAdd(0)} type="button">
-              + 새 메모
+              새 일정 메모 만들기
+            </button>
+            <button className={s.secondaryBtn} onClick={openPinnedAdd} type="button">
+              날짜 없는 고정 메모 만들기
             </button>
           </div>
 
           <div className={s.panel}>
-            <div className={s.panelTitle}>앱처럼 설치</div>
+            <div className={s.panelTitle}>기기 옮기기</div>
             <div className={s.panelText}>
-              {isStandalone
-                ? "이미 앱처럼 설치된 상태입니다."
-                : "브라우저 메뉴에서 앱 설치 또는 홈 화면에 추가를 누르면 앱처럼 사용할 수 있습니다."}
+              컴퓨터에서 JSON으로 내보내고, 휴대폰의 모바일 버전에서 가져오면 그대로 이어서 쓸 수 있어요.
             </div>
-            <button className={s.installBtn} onClick={installApp} type="button">
-              {installPrompt ? "앱 설치하기" : "설치 방법 보기"}
-            </button>
-          </div>
-
-          <div className={s.panel}>
-            <div className={s.panelTitle}>내보내기 / 가져오기</div>
-            <div className={s.panelText}>컴퓨터에서 JSON으로 내보낸 뒤, 모바일에서 같은 파일을 가져오면 이어서 쓸 수 있습니다.</div>
             <div className={s.quickRow}>
               <button className={s.quickBtn} onClick={exportItems} type="button">
                 내보내기
               </button>
-              <button
-                className={s.quickBtn}
-                onClick={() => importInputRef.current?.click()}
-                type="button"
-              >
+              <button className={s.quickBtn} onClick={() => importInputRef.current?.click()} type="button">
                 가져오기
               </button>
             </div>
-            <input
-              accept="application/json,.json"
-              hidden
-              onChange={importItems}
-              ref={importInputRef}
-              type="file"
-            />
+            <input accept="application/json,.json" hidden onChange={importItems} ref={importInputRef} type="file" />
           </div>
 
-          <div className={s.mascotCard}>
-            <Image alt="오리 마스코트" className={s.mascotImg} height={220} src="/profile-duck.png" width={220} />
-            <div className={s.panelTitle}>모바일과 같은 감성</div>
-            <div className={s.panelText}>원본 모바일 톤을 그대로 가져오고, 데스크톱에서는 보기 편하게 폭만 넓혔습니다.</div>
+          <div className={s.panel}>
+            <div className={s.panelTitle}>앱처럼 설치하기</div>
+            <div className={s.panelText}>
+              {isStandalone
+                ? "이미 홈 화면 앱으로 사용 중이에요."
+                : "Vercel에 배포한 뒤 브라우저 메뉴의 설치 또는 홈 화면 추가 기능으로 앱처럼 쓸 수 있어요."}
+            </div>
+            <button className={s.installBtn} onClick={installApp} type="button">
+              {installPrompt ? "설치 진행하기" : "설치 방법 보기"}
+            </button>
+          </div>
+
+          <div className={s.panel}>
+            <div className={s.panelTitle}>다가오는 일정 미리보기</div>
+            {timelineItems.length ? (
+              <div className={s.timelineList}>
+                {timelineItems.map((item) => (
+                  <div className={s.timelineItem} key={item.id}>
+                    <span className={s.timelineBadge}>{relativeLabel(item.date, item.repeatYearly)}</span>
+                    <div className={s.timelineText}>
+                      <strong>{item.title}</strong>
+                      <span>{formatDate(item.date, item.repeatYearly)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={s.panelText}>다가오는 일정이 생기면 이곳에 먼저 보여드릴게요.</div>
+            )}
+          </div>
+
+          <div className={`${s.panel} ${s.mascotCard}`}>
+            <Image alt="짱귀요미오리 마스코트" className={s.mascotImg} height={220} src="/profile-duck.png" width={220} />
+            <div className={s.panelTitle}>모바일 원본도 그대로 있어요</div>
+            <div className={s.panelText}>
+              모바일 감성을 더 좋아하면 원래 화면으로 바로 들어가서 그대로 사용할 수 있어요.
+            </div>
             <a className={s.mobileLink} href="/dday-v3.html">
               모바일 원본 보기
             </a>
@@ -549,67 +967,95 @@ export default function DuckMemoWeb() {
         <div className={s.overlay} onClick={(event) => event.target === event.currentTarget && closeModal()} role="presentation">
           <form className={s.modal} onSubmit={saveDraft}>
             <div className={s.modalHead}>
-              <div className={s.modalTtl}>{editId ? "메모 수정하기" : "새로 추가하기"}</div>
-              <button className={s.modalX} onClick={closeModal} type="button">
-                ✕
+              <div>
+                <div className={s.modalEyebrow}>{editId ? "Edit memo" : "New memo"}</div>
+                <div className={s.modalTitle}>{editId ? "메모 수정하기" : "새 메모 추가하기"}</div>
+              </div>
+              <button className={s.modalClose} onClick={closeModal} type="button">
+                닫기
               </button>
             </div>
 
-            <div className={s.fgroup}>
+            <div className={s.formGrid}>
               <label className={s.field}>
-                <span className={s.flabel}>제목</span>
+                <span className={s.label}>제목</span>
                 <input
-                  className={s.finput}
+                  className={s.input}
                   maxLength={80}
                   onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="제목을 입력하세요"
+                  placeholder="기억할 제목을 적어주세요"
                   value={draft.title}
                 />
               </label>
 
               <div className={s.field}>
-                <div className={s.rowHd}>
-                  <span className={s.flabel}>날짜</span>
-                  <div className={s.togWrap}>
-                    <span className={s.togTxt}>{draft.hasDate ? "날짜 있음" : "상시 고정"}</span>
+                <div className={s.rowHead}>
+                  <span className={s.label}>날짜</span>
+                  <div className={s.toggleWrap}>
+                    <span className={s.toggleText}>{draft.hasDate ? "날짜 있음" : "고정 메모"}</span>
                     <button
-                      className={`${s.tog} ${draft.hasDate ? s.togOn : ""}`}
-                      onClick={() => setDraft((current) => ({ ...current, hasDate: !current.hasDate }))}
+                      className={`${s.toggle} ${draft.hasDate ? s.toggleOn : ""}`}
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          hasDate: !current.hasDate,
+                          date: current.date || todayISO(0),
+                          repeatYearly: current.hasDate ? false : current.repeatYearly,
+                        }))
+                      }
                       type="button"
                     >
-                      <span className={s.togK} />
+                      <span className={s.toggleKnob} />
                     </button>
                   </div>
                 </div>
+
                 {draft.hasDate ? (
-                  <input
-                    className={s.finput}
-                    onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))}
-                    type="date"
-                    value={draft.date}
-                  />
+                  <>
+                    <input
+                      className={s.input}
+                      onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))}
+                      type="date"
+                      value={draft.date}
+                    />
+                    <div className={s.repeatRow}>
+                      <button
+                        className={`${s.repeatBtn} ${draft.repeatYearly ? s.repeatBtnActive : ""}`}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            repeatYearly: !current.repeatYearly,
+                          }))
+                        }
+                        type="button"
+                      >
+                        {draft.repeatYearly ? "매년 반복 켜짐" : "매년 반복 끔"}
+                      </button>
+                      <span className={s.repeatText}>생일이나 기념일처럼 매년 같은 날 다시 보여줘요.</span>
+                    </div>
+                  </>
                 ) : (
-                  <div className={s.helper}>날짜를 끄면 고정 메모로 저장됩니다.</div>
+                  <div className={s.helper}>날짜를 끄면 데스크톱과 모바일 모두에서 고정 메모로 보여요.</div>
                 )}
               </div>
 
               <label className={s.field}>
-                <span className={s.flabel}>메모</span>
+                <span className={s.label}>메모</span>
                 <textarea
-                  className={s.finput}
+                  className={`${s.input} ${s.textarea}`}
                   onChange={(event) => setDraft((current) => ({ ...current, memo: event.target.value }))}
-                  placeholder="세부 내용을 적어두세요"
+                  placeholder="조금 더 자세한 메모를 남겨보세요"
                   rows={5}
                   value={draft.memo}
                 />
               </label>
 
               <div className={s.field}>
-                <span className={s.flabel}>색상</span>
-                <div className={s.cdots}>
+                <span className={s.label}>색상</span>
+                <div className={s.colorRow}>
                   {COLORS.map((color, index) => (
                     <button
-                      className={`${s.cdot} ${draft.color === index ? s.cdotActive : ""}`}
+                      className={`${s.colorDot} ${draft.color === index ? s.colorDotActive : ""}`}
                       key={color.left}
                       onClick={() => setDraft((current) => ({ ...current, color: index }))}
                       style={{ background: color.left }}
@@ -619,20 +1065,29 @@ export default function DuckMemoWeb() {
                 </div>
               </div>
 
-              <div className={s.quickRow}>
-                {QUICK_DATES.map((item) => (
-                  <button
-                    className={s.quickBtn}
-                    key={`modal-${item.label}`}
-                    onClick={() => setDraft((current) => ({ ...current, hasDate: true, date: todayISO(item.offset) }))}
-                    type="button"
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className={s.field}>
+                <span className={s.label}>빠른 날짜</span>
+                <div className={s.quickRow}>
+                  {QUICK_DATES.map((item) => (
+                    <button
+                      className={s.quickBtn}
+                      key={`modal-${item.label}`}
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          hasDate: true,
+                          date: todayISO(item.offset),
+                        }))
+                      }
+                      type="button"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <button className={s.sbtn} disabled={!draft.title.trim()} type="submit">
+              <button className={s.submitBtn} disabled={!draft.title.trim()} type="submit">
                 {editId ? "수정 완료" : "추가하기"}
               </button>
             </div>
