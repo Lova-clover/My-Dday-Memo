@@ -8,6 +8,7 @@
     "android:sync": "npm run sync:web && npx cap sync android",
     "android:open": "npx cap open android",
     "android:build:debug": "npm run sync:web && npx cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:build:release": "npm run sync:web && npx cap sync android && cd android && gradlew.bat assembleRelease",
     "apk:publish": "node ./scripts/publish-android-apk.mjs"
   },
   "dependencies": {
