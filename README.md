@@ -13,8 +13,23 @@
 </p>
 
 <p align="center">
+  <sub>왼쪽은 모바일 메인 화면, 오른쪽은 PC에서 길게 적고 정리하기 위한 데스크톱 웹 보드입니다.</sub>
+</p>
+
+<p align="center">
   <img src="docs/images/android-app-download.jpeg" width="760" alt="나만의 D-DAY 안드로이드 앱 다운로드 페이지" />
 </p>
+
+<p align="center">
+  <sub>안드로이드 앱은 별도 다운로드 페이지에서 APK로 바로 설치할 수 있게 정리했습니다.</sub>
+</p>
+
+## Try It
+
+- **Mobile (Web)**: [모바일 버전 바로가기](https://my-dday-memo.vercel.app/dday-v3.html)
+- **Desktop (Web)**: [데스크톱 웹 보드 바로가기](https://my-dday-memo.vercel.app/web)
+- **Android App**: [APK 다운로드 페이지](https://my-dday-memo.vercel.app/app)
+- **Dev Write-up**: [블로그 회고 - 날짜 밀릴 때마다 다시 고치기 귀찮아서, 나만의 D-DAY 메모 앱을 만들었다](https://velog.io/@lova-clover/%EB%82%A0%EC%A7%9C-%EB%B0%80%EB%A6%B4-%EB%95%8C%EB%A7%88%EB%8B%A4-%EB%8B%A4%EC%8B%9C-%EA%B3%A0%EC%B9%98%EA%B8%B0-%EA%B7%80%EC%B0%AE%EC%95%84%EC%84%9C-%EB%82%98%EB%A7%8C%EC%9D%98-D-DAY-%EB%A9%94%EB%AA%A8-%EC%95%B1%EC%9D%84-%EB%A7%8C%EB%93%A4%EC%97%88%EB%8B%A4)
 
 ## 핵심 방향
 
