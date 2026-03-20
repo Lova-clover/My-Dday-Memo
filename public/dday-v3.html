@@ -365,7 +365,8 @@ body{font-family:"Nunito",sans-serif;background:#FFF9F0;min-height:100vh;min-hei
         </div>
         <div class="repeat-row" id="repeatWrap">
           <button class="repeat-btn" id="repeatBtn" onclick="toggleRepeat()">매년 반복 끔</button>
-          <span class="repeat-help">생일이나 기념일처럼 매년 같은 날 다시 보여줘요.</span>
+          <button class="repeat-btn" id="repeatWeeklyBtn" onclick="toggleWeeklyRepeat()">매주 반복 끔</button>
+          <span class="repeat-help">생일은 매년 반복으로, 정기 미팅이나 루틴은 매주 반복으로 다시 보여줘요.</span>
         </div>
       </div>
       <div>
@@ -435,14 +436,14 @@ if(!items.length){
     {id:"1",title:"프로젝트 마감 🚀",date:d(2),memo:"최종 보고서 제출 및 발표 준비",color:0},
     {id:"2",title:"매일 운동하기 💪",date:null,memo:"스쿼트 50개, 플랭크 1분",color:2},
     {id:"3",title:"생일 파티 🎂",date:d(14),memo:"케이크 예약 + 선물 구매",color:5},
-    {id:"4",title:"팀 미팅 📊",date:d(6),memo:"준비물: 노트북, 발표자료",color:3},
+    {id:"4",title:"팀 미팅 📊",date:d(6),memo:"준비물: 노트북, 발표자료",color:3,repeatWeekly:true},
     {id:"5",title:"영어 공부 📚",date:null,memo:"Anki 30분 이상",color:4},
     {id:"6",title:"지난 스터디",date:d(-3),memo:"후기 정리 필요",color:1},
     {id:"7",title:"헬스장 등록",date:d(-10),memo:"3개월권 끊기",color:2},
   ];
 }
 
-let editId=null,selColor=0,hasDate=true,repeatYearly=false,pastOpen=false;
+let editId=null,selColor=0,hasDate=true,repeatYearly=false,repeatWeekly=false,pastOpen=false;
 
 function persist(){try{localStorage.setItem("dday-v3",JSON.stringify(items))}catch(e){}}
 function normalizeImportItem(raw,index){
@@ -451,13 +452,15 @@ function normalizeImportItem(raw,index){
   if(!title)return null;
   const date=typeof raw.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(raw.date)?raw.date:null;
   const color=Number.isInteger(raw.color)&&raw.color>=0&&raw.color<COLORS.length?raw.color:0;
+  const yearly=Boolean(raw.repeatYearly)&&Boolean(date);
   return{
     id:typeof raw.id==="string"&&raw.id?raw.id:`import-${index}-${Date.now()}`,
     title,
     date,
     memo:typeof raw.memo==="string"?raw.memo.trim():"",
     color,
-    repeatYearly:Boolean(raw.repeatYearly)&&Boolean(date)
+    repeatYearly:yearly,
+    repeatWeekly:!yearly&&Boolean(raw.repeatWeekly)&&Boolean(date)
   };
 }
 function exportData(){
@@ -507,11 +510,29 @@ function annualOccurrence(ds,year){
   const lastDay=new Date(year,month+1,0).getDate();
   return new Date(year,month,Math.min(day,lastDay));
 }
-function effectiveDate(ds,repeat){
+function weeklyOccurrence(ds){
+  const base=new Date(ds+"T00:00:00");
+  if(Number.isNaN(base.getTime()))return null;
+  base.setHours(0,0,0,0);
+  const today=new Date();today.setHours(0,0,0,0);
+  if(base>=today)return base;
+  const diff=Math.floor((today-base)/86400000);
+  const daysUntil=(7-(diff%7))%7;
+  const candidate=new Date(today);
+  candidate.setDate(candidate.getDate()+daysUntil);
+  return candidate;
+}
+function repeatLabel(yearly,weekly){
+  if(yearly)return"매년 반복";
+  if(weekly)return"매주 반복";
+  return"";
+}
+function effectiveDate(ds,repeatYearlyValue,repeatWeeklyValue){
   if(!ds)return null;
   const base=new Date(ds+"T00:00:00");
   if(Number.isNaN(base.getTime()))return null;
-  if(!repeat)return base;
+  if(repeatWeeklyValue)return weeklyOccurrence(ds);
+  if(!repeatYearlyValue)return base;
   const today=new Date();today.setHours(0,0,0,0);
   let candidate=annualOccurrence(ds,today.getFullYear());
   candidate.setHours(0,0,0,0);
@@ -521,16 +542,17 @@ function effectiveDate(ds,repeat){
   }
   return candidate;
 }
-function dday(ds,repeat){
-  const target=effectiveDate(ds,repeat);
+function dday(ds,repeatYearlyValue,repeatWeeklyValue){
+  const target=effectiveDate(ds,repeatYearlyValue,repeatWeeklyValue);
   if(!target)return null;
   const t=new Date();t.setHours(0,0,0,0);
   return Math.round((target-t)/86400000);
 }
-function fmt(ds,repeat){
+function fmt(ds,repeatYearlyValue,repeatWeeklyValue){
   if(!ds)return"";
   const d=new Date(ds+"T00:00:00");
-  if(repeat)return "매년 "+(d.getMonth()+1)+". "+d.getDate()+".";
+  if(repeatWeeklyValue)return "매주 "+WD[d.getDay()]+"요일";
+  if(repeatYearlyValue)return "매년 "+(d.getMonth()+1)+". "+d.getDate()+".";
   return d.getFullYear()+". "+(d.getMonth()+1)+". "+d.getDate()+". ("+WD[d.getDay()]+")";
 }
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
@@ -903,7 +925,7 @@ function del(id){
   if(confirm("정말 삭제할까요? 🗑")){items=items.filter(i=>i.id!==id);persist();render()}
 }
 function itemBadge(it){
-  const d=dday(it.date,it.repeatYearly);
+  const d=dday(it.date,it.repeatYearly,it.repeatWeekly);
   if(d===null) return`<span class="item-badge badge-pin">📌 고정</span>`;
   if(d===0)    return`<span class="item-badge" style="background:#FBBF24;color:white;animation:pop .3s ease">✨ D-0</span>`;
   if(d<=3)     return`<span class="item-badge badge-d1">D-${d}</span>`;
@@ -911,6 +933,7 @@ function itemBadge(it){
   return`<span class="item-badge badge-far">D-${d}</span>`;
 }
 function todayCard(it){
+  const repeat=repeatLabel(it.repeatYearly,it.repeatWeekly);
   return`<div class="today-card" style="border-color:${ACC[it.color??0]}">
     <div class="today-actions">
       <button class="act-btn" style="background:rgba(255,255,255,.85);color:#92400E" onclick="openEdit('${it.id}')">✏️</button>
@@ -918,14 +941,15 @@ function todayCard(it){
     </div>
     <div class="today-tag">✨ 오늘이에요</div>
     <div class="today-title">${esc(it.title)}</div>
-    <div class="today-date-txt">${it.repeatYearly?"🔁":"📅"} ${fmt(it.date,it.repeatYearly)}</div>
+    <div class="today-date-txt">${repeat?"🔁":"📅"} ${fmt(it.date,it.repeatYearly,it.repeatWeekly)}</div>
     ${it.memo?`<div class="today-memo">${esc(it.memo)}</div>`:""}
-    ${it.repeatYearly?`<div class="today-memo" style="margin-top:8px;padding:5px 10px;display:inline-flex;width:auto">매년 반복</div>`:""}
+    ${repeat?`<div class="today-memo" style="margin-top:8px;padding:5px 10px;display:inline-flex;width:auto">${repeat}</div>`:""}
   </div>`;
 }
 function itemCard(it){
   const c=COLORS[it.color??0];
   const accent=ACC[it.color??0];
+  const repeat=repeatLabel(it.repeatYearly,it.repeatWeekly);
   return`<div class="item-card" style="background:${c.bg};border-left:4px solid ${accent};border-color:${accent}22">
     <div class="item-actions">
       <button class="act-btn" style="background:rgba(255,255,255,.9);color:#92400E" onclick="openEdit('${it.id}')">✏️</button>
@@ -935,12 +959,13 @@ function itemCard(it){
       <div class="item-title">${esc(it.title)}</div>
       ${itemBadge(it)}
     </div>
-    ${it.date?`<div class="item-date">${it.repeatYearly?"🔁":"📅"} ${fmt(it.date,it.repeatYearly)}${it.repeatYearly?" · 매년 반복":""}</div>`:"<div class=\"item-date\">📌 날짜 없음 · 항상 표시</div>"}
+    ${it.date?`<div class="item-date">${repeat?"🔁":"📅"} ${fmt(it.date,it.repeatYearly,it.repeatWeekly)}${repeat?` · ${repeat}`:""}</div>`:"<div class=\"item-date\">📌 날짜 없음 · 항상 표시</div>"}
     ${it.memo?`<div class="item-memo" style="background:${c.memo}">${esc(it.memo)}</div>`:""}
   </div>`;
 }
 function pastCard(it){
-  const d=dday(it.date,it.repeatYearly);
+  const d=dday(it.date,it.repeatYearly,it.repeatWeekly);
+  const repeat=repeatLabel(it.repeatYearly,it.repeatWeekly);
   return`<div class="past-card">
     <div class="past-actions">
       <button class="act-btn" style="background:#F3F4F6;color:#6B7280" onclick="openEdit('${it.id}')">✏️</button>
@@ -950,7 +975,7 @@ function pastCard(it){
       <div class="past-title">${esc(it.title)}</div>
       <span class="past-badge">D+${Math.abs(d)}</span>
     </div>
-    <div class="past-date">${it.repeatYearly?"🔁":"📅"} ${fmt(it.date,it.repeatYearly)}</div>
+    <div class="past-date">${repeat?"🔁":"📅"} ${fmt(it.date,it.repeatYearly,it.repeatWeekly)}</div>
   </div>`;
 }
 function render(){
@@ -959,10 +984,10 @@ function render(){
     now.getFullYear()+"년 "+(now.getMonth()+1)+"월 "+now.getDate()+"일 ("+WD[now.getDay()]+")";
   const q=(document.getElementById("searchInp").value||"").toLowerCase().trim();
   const f=q?items.filter(i=>i.title.toLowerCase().includes(q)||(i.memo||"").toLowerCase().includes(q)):items;
-  const todArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly)===0);
+  const todArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly,i.repeatWeekly)===0);
   const fixArr=f.filter(i=>!i.date);
-  const futArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly)>0).sort((a,b)=>effectiveDate(a.date,a.repeatYearly)-effectiveDate(b.date,b.repeatYearly));
-  const pastArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly)<0).sort((a,b)=>effectiveDate(b.date,b.repeatYearly)-effectiveDate(a.date,a.repeatYearly));
+  const futArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly,i.repeatWeekly)>0).sort((a,b)=>effectiveDate(a.date,a.repeatYearly,a.repeatWeekly)-effectiveDate(b.date,b.repeatYearly,b.repeatWeekly));
+  const pastArr=f.filter(i=>i.date&&dday(i.date,i.repeatYearly,i.repeatWeekly)<0).sort((a,b)=>effectiveDate(b.date,b.repeatYearly,b.repeatWeekly)-effectiveDate(a.date,a.repeatYearly,a.repeatWeekly));
   const pill=document.getElementById("todayPill");
   if(todArr.length){pill.textContent="✨ 오늘 "+todArr.length+"개";pill.className="today-pill has";}
   else{pill.textContent="오늘 없음";pill.className="today-pill none";}
@@ -979,19 +1004,29 @@ function render(){
 }
 function syncRepeatUi(){
   const wrap=document.getElementById("repeatWrap");
-  const btn=document.getElementById("repeatBtn");
+  const yearlyBtn=document.getElementById("repeatBtn");
+  const weeklyBtn=document.getElementById("repeatWeeklyBtn");
   wrap.style.display=hasDate?"flex":"none";
-  btn.className="repeat-btn"+(repeatYearly?" on":"");
-  btn.textContent=repeatYearly?"매년 반복 켜짐":"매년 반복 끔";
+  yearlyBtn.className="repeat-btn"+(repeatYearly?" on":"");
+  yearlyBtn.textContent=repeatYearly?"매년 반복 켜짐":"매년 반복 끔";
+  weeklyBtn.className="repeat-btn"+(repeatWeekly?" on":"");
+  weeklyBtn.textContent=repeatWeekly?"매주 반복 켜짐":"매주 반복 끔";
 }
 function toggleRepeat(){
   if(!hasDate)return;
   repeatYearly=!repeatYearly;
+  if(repeatYearly)repeatWeekly=false;
+  syncRepeatUi();
+}
+function toggleWeeklyRepeat(){
+  if(!hasDate)return;
+  repeatWeekly=!repeatWeekly;
+  if(repeatWeekly)repeatYearly=false;
   syncRepeatUi();
 }
 function toggleDate(){
   hasDate=!hasDate;
-  if(!hasDate) repeatYearly=false;
+  if(!hasDate){repeatYearly=false;repeatWeekly=false;}
   if(!hasDate) closeDateWheel();
   document.getElementById("togBtn").className="tog"+(hasDate?" on":"");
   document.getElementById("togTxt").textContent=hasDate?"날짜 있음":"항상 고정";
@@ -999,7 +1034,7 @@ function toggleDate(){
   syncRepeatUi();
 }
 function openAdd(){
-  editId=null;hasDate=true;repeatYearly=false;selColor=0;
+  editId=null;hasDate=true;repeatYearly=false;repeatWeekly=false;selColor=0;
   closeDateWheel();
   document.getElementById("mTitle").textContent="✨ 새로 추가";
   document.getElementById("sbtn").textContent="추가하기 🎉";
@@ -1016,7 +1051,7 @@ function openAdd(){
 }
 function openEdit(id){
   const it=items.find(i=>i.id===id);if(!it)return;
-  editId=id;hasDate=!!it.date;repeatYearly=Boolean(it.repeatYearly)&&hasDate;selColor=it.color??0;
+  editId=id;hasDate=!!it.date;repeatYearly=Boolean(it.repeatYearly)&&hasDate;repeatWeekly=Boolean(it.repeatWeekly)&&hasDate;selColor=it.color??0;
   closeDateWheel();
   document.getElementById("mTitle").textContent="✏️ 메모 수정하기";
   document.getElementById("sbtn").textContent="수정 완료 ✨";
@@ -1034,7 +1069,7 @@ function openEdit(id){
 function trySave(){
   const title=document.getElementById("fTitle").value.trim();
   if(!title)return;
-  const obj={id:editId||Date.now().toString(),title,date:hasDate?document.getElementById("fDate").value:null,memo:document.getElementById("fMemo").value.trim(),color:selColor,repeatYearly:hasDate?repeatYearly:false};
+  const obj={id:editId||Date.now().toString(),title,date:hasDate?document.getElementById("fDate").value:null,memo:document.getElementById("fMemo").value.trim(),color:selColor,repeatYearly:hasDate?repeatYearly:false,repeatWeekly:hasDate?repeatWeekly:false};
   items=editId?items.map(i=>i.id===editId?obj:i):[...items,obj];
   persist();closeModal();render();
 }

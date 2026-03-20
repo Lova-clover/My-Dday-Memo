@@ -67,9 +67,34 @@ function annualOccurrence(value, year) {
   return new Date(year, month, Math.min(day, lastDay));
 }
 
-function effectiveDate(value, repeatYearly = false) {
+function weeklyOccurrence(value) {
   const base = parseDate(value);
   if (!base) return null;
+
+  base.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (base >= today) return base;
+
+  const diff = Math.floor((today.getTime() - base.getTime()) / DAY);
+  const daysUntil = (7 - (diff % 7)) % 7;
+  const candidate = new Date(today);
+  candidate.setDate(candidate.getDate() + daysUntil);
+  return candidate;
+}
+
+function repeatLabel(repeatYearly = false, repeatWeekly = false) {
+  if (repeatYearly) return "매년 반복";
+  if (repeatWeekly) return "매주 반복";
+  return "";
+}
+
+function effectiveDate(value, repeatYearly = false, repeatWeekly = false) {
+  const base = parseDate(value);
+  if (!base) return null;
+  if (repeatWeekly) return weeklyOccurrence(value);
   if (!repeatYearly) return base;
 
   const today = new Date();
@@ -86,8 +111,8 @@ function effectiveDate(value, repeatYearly = false) {
   return candidate;
 }
 
-function dday(value, repeatYearly = false) {
-  const date = effectiveDate(value, repeatYearly);
+function dday(value, repeatYearly = false, repeatWeekly = false) {
+  const date = effectiveDate(value, repeatYearly, repeatWeekly);
   if (!date) return null;
 
   const today = new Date();
@@ -96,15 +121,16 @@ function dday(value, repeatYearly = false) {
   return Math.round((date.getTime() - today.getTime()) / DAY);
 }
 
-function formatDate(value, repeatYearly = false) {
+function formatDate(value, repeatYearly = false, repeatWeekly = false) {
   const date = parseDate(value);
   if (!date) return "날짜 없는 고정 메모";
+  if (repeatWeekly) return `매주 ${WEEKDAYS[date.getDay()]}요일`;
   if (repeatYearly) return `매년 ${date.getMonth() + 1}. ${date.getDate()}.`;
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}. (${WEEKDAYS[date.getDay()]})`;
 }
 
-function relativeLabel(value, repeatYearly = false) {
-  const diff = dday(value, repeatYearly);
+function relativeLabel(value, repeatYearly = false, repeatWeekly = false) {
+  const diff = dday(value, repeatYearly, repeatWeekly);
   if (diff === null) return "상시 메모";
   if (diff === 0) return "오늘";
   if (diff > 0) return `D-${diff}`;
@@ -119,13 +145,17 @@ function normalizeItem(raw, index = 0) {
 
   const color = Number.isInteger(raw.color) && raw.color >= 0 && raw.color < COLORS.length ? raw.color : 1;
 
+  const repeatYearly = Boolean(raw.repeatYearly) && Boolean(raw.date);
+  const repeatWeekly = !repeatYearly && Boolean(raw.repeatWeekly) && Boolean(raw.date);
+
   return {
     id: typeof raw.id === "string" && raw.id ? raw.id : `memo-${index}-${createId()}`,
     title,
     date: typeof raw.date === "string" && raw.date ? raw.date : null,
     memo: typeof raw.memo === "string" ? raw.memo.trim() : "",
     color,
-    repeatYearly: Boolean(raw.repeatYearly) && Boolean(raw.date),
+    repeatYearly,
+    repeatWeekly,
   };
 }
 
@@ -159,6 +189,7 @@ function sampleItems() {
       date: todayISO(6),
       memo: "발표 자료 검토하고 질문 포인트 메모",
       color: 3,
+      repeatWeekly: true,
     },
   ];
 }
@@ -191,7 +222,7 @@ function persist(items) {
 }
 
 function emptyDraft() {
-  return { title: "", date: todayISO(0), memo: "", color: 1, hasDate: true, repeatYearly: false };
+  return { title: "", date: todayISO(0), memo: "", color: 1, hasDate: true, repeatYearly: false, repeatWeekly: false };
 }
 
 function draftFromItem(item) {
@@ -204,11 +235,12 @@ function draftFromItem(item) {
     color: item.color ?? 1,
     hasDate: Boolean(item.date),
     repeatYearly: Boolean(item.repeatYearly),
+    repeatWeekly: Boolean(item.repeatWeekly),
   };
 }
 
 function cardBadge(item) {
-  const diff = dday(item.date, item.repeatYearly);
+  const diff = dday(item.date, item.repeatYearly, item.repeatWeekly);
 
   if (diff === null) return { label: "고정", className: s.badgePin };
   if (diff === 0) return { label: "D-0", className: s.badgeToday };
@@ -251,11 +283,13 @@ function TodayCard({ item, onEdit, onDelete }) {
 
       <div className={s.todayTag}>오늘 바로 확인</div>
       <div className={s.todayTitle}>{item.title}</div>
-      <div className={s.todayDate}>{formatDate(item.date, item.repeatYearly)}</div>
+      <div className={s.todayDate}>{formatDate(item.date, item.repeatYearly, item.repeatWeekly)}</div>
       {item.memo ? <div className={s.todayMemo}>{item.memo}</div> : null}
       <div className={s.todayFoot}>
         <span className={s.softPill}>오늘 마감</span>
-        {item.repeatYearly ? <span className={s.repeatChip}>매년 반복</span> : null}
+        {repeatLabel(item.repeatYearly, item.repeatWeekly) ? (
+          <span className={s.repeatChip}>{repeatLabel(item.repeatYearly, item.repeatWeekly)}</span>
+        ) : null}
       </div>
     </article>
   );
@@ -289,9 +323,11 @@ function MemoCard({ item, onEdit, onDelete }) {
       </div>
 
       <div className={s.memoMeta}>
-        <span className={s.metaPill}>{relativeLabel(item.date, item.repeatYearly)}</span>
-        <span className={s.memoDate}>{formatDate(item.date, item.repeatYearly)}</span>
-        {item.repeatYearly ? <span className={s.repeatChip}>매년 반복</span> : null}
+        <span className={s.metaPill}>{relativeLabel(item.date, item.repeatYearly, item.repeatWeekly)}</span>
+        <span className={s.memoDate}>{formatDate(item.date, item.repeatYearly, item.repeatWeekly)}</span>
+        {repeatLabel(item.repeatYearly, item.repeatWeekly) ? (
+          <span className={s.repeatChip}>{repeatLabel(item.repeatYearly, item.repeatWeekly)}</span>
+        ) : null}
       </div>
 
       {item.memo ? (
@@ -319,9 +355,9 @@ function PastCard({ item, onEdit, onDelete }) {
 
       <div className={s.pastTop}>
         <div className={s.pastTitle}>{item.title}</div>
-        <span className={s.pastBadge}>{relativeLabel(item.date, item.repeatYearly)}</span>
+        <span className={s.pastBadge}>{relativeLabel(item.date, item.repeatYearly, item.repeatWeekly)}</span>
       </div>
-      <div className={s.pastDate}>{formatDate(item.date, item.repeatYearly)}</div>
+      <div className={s.pastDate}>{formatDate(item.date, item.repeatYearly, item.repeatWeekly)}</div>
       {item.memo ? <div className={s.pastMemo}>{item.memo}</div> : null}
     </article>
   );
@@ -400,22 +436,28 @@ export default function DuckMemoWeb() {
     ? items.filter((item) => item.title.toLowerCase().includes(normalizedQuery) || item.memo.toLowerCase().includes(normalizedQuery))
     : items;
 
-  const todayItems = filteredItems.filter((item) => item.date && dday(item.date, item.repeatYearly) === 0);
+  const todayItems = filteredItems.filter((item) => item.date && dday(item.date, item.repeatYearly, item.repeatWeekly) === 0);
   const fixedItems = filteredItems.filter((item) => !item.date);
   const upcomingItems = filteredItems
-    .filter((item) => item.date && dday(item.date, item.repeatYearly) > 0)
-    .sort((a, b) => effectiveDate(a.date, a.repeatYearly) - effectiveDate(b.date, b.repeatYearly));
+    .filter((item) => item.date && dday(item.date, item.repeatYearly, item.repeatWeekly) > 0)
+    .sort(
+      (a, b) =>
+        effectiveDate(a.date, a.repeatYearly, a.repeatWeekly) - effectiveDate(b.date, b.repeatYearly, b.repeatWeekly),
+    );
   const pastItems = filteredItems
-    .filter((item) => item.date && dday(item.date, item.repeatYearly) < 0)
-    .sort((a, b) => effectiveDate(b.date, b.repeatYearly) - effectiveDate(a.date, a.repeatYearly));
+    .filter((item) => item.date && dday(item.date, item.repeatYearly, item.repeatWeekly) < 0)
+    .sort(
+      (a, b) =>
+        effectiveDate(b.date, b.repeatYearly, b.repeatWeekly) - effectiveDate(a.date, a.repeatYearly, a.repeatWeekly),
+    );
 
   const nextUpcoming = upcomingItems[0] ?? null;
   const urgentUpcomingCount = upcomingItems.filter((item) => {
-    const diff = dday(item.date, item.repeatYearly);
+    const diff = dday(item.date, item.repeatYearly, item.repeatWeekly);
     return diff !== null && diff <= 3;
   }).length;
   const weekCount = upcomingItems.filter((item) => {
-    const diff = dday(item.date, item.repeatYearly);
+    const diff = dday(item.date, item.repeatYearly, item.repeatWeekly);
     return diff !== null && diff <= 7;
   }).length;
   const countsByFilter = {
@@ -436,7 +478,7 @@ export default function DuckMemoWeb() {
 
   const openPinnedAdd = () => {
     setEditId(null);
-    setDraft({ ...emptyDraft(), hasDate: false, repeatYearly: false });
+    setDraft({ ...emptyDraft(), hasDate: false, repeatYearly: false, repeatWeekly: false });
     setModalOpen(true);
   };
 
@@ -464,6 +506,7 @@ export default function DuckMemoWeb() {
       memo: draft.memo.trim(),
       color: draft.color,
       repeatYearly: draft.hasDate ? draft.repeatYearly : false,
+      repeatWeekly: draft.hasDate ? draft.repeatWeekly : false,
     };
 
     startTransition(() => {
@@ -659,7 +702,9 @@ export default function DuckMemoWeb() {
               </div>
               <div className={s.statCard}>
                 <div className={s.statLabel}>가장 가까운 일정</div>
-                <div className={s.statValue}>{nextUpcoming ? relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly) : "-"}</div>
+                <div className={s.statValue}>
+                  {nextUpcoming ? relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly, nextUpcoming.repeatWeekly) : "-"}
+                </div>
                 <div className={s.statHint}>{nextUpcoming ? nextUpcoming.title : "예정된 일정이 아직 없어요."}</div>
               </div>
               <div className={s.statCard}>
@@ -807,7 +852,11 @@ export default function DuckMemoWeb() {
             <div className={s.panelHero}>{todayItems.length ? `오늘 처리할 일정 ${todayItems.length}개` : "오늘은 한결 여유로운 보드예요."}</div>
             <div className={s.panelText}>
               {nextUpcoming
-                ? `가장 가까운 일정은 "${nextUpcoming.title}"이고 ${relativeLabel(nextUpcoming.date, nextUpcoming.repeatYearly)} 상태예요.`
+                ? `가장 가까운 일정은 "${nextUpcoming.title}"이고 ${relativeLabel(
+                    nextUpcoming.date,
+                    nextUpcoming.repeatYearly,
+                    nextUpcoming.repeatWeekly,
+                  )} 상태예요.`
                 : "다가오는 일정이 아직 없어서 고정 메모 정리나 아이디어 수집에 집중하기 좋아요."}
             </div>
             <div className={s.summaryList}>
@@ -909,6 +958,7 @@ export default function DuckMemoWeb() {
                           hasDate: !current.hasDate,
                           date: current.date || todayISO(0),
                           repeatYearly: current.hasDate ? false : current.repeatYearly,
+                          repeatWeekly: current.hasDate ? false : current.repeatWeekly,
                         }))
                       }
                       type="button"
@@ -933,13 +983,29 @@ export default function DuckMemoWeb() {
                           setDraft((current) => ({
                             ...current,
                             repeatYearly: !current.repeatYearly,
+                            repeatWeekly: !current.repeatYearly ? false : current.repeatWeekly,
                           }))
                         }
                         type="button"
                       >
                         {draft.repeatYearly ? "매년 반복 켜짐" : "매년 반복 끔"}
                       </button>
-                      <span className={s.repeatText}>생일이나 기념일처럼 매년 같은 날 다시 보여줘요.</span>
+                      <button
+                        className={`${s.repeatBtn} ${draft.repeatWeekly ? s.repeatBtnActive : ""}`}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            repeatWeekly: !current.repeatWeekly,
+                            repeatYearly: !current.repeatWeekly ? false : current.repeatYearly,
+                          }))
+                        }
+                        type="button"
+                      >
+                        {draft.repeatWeekly ? "매주 반복 켜짐" : "매주 반복 끔"}
+                      </button>
+                      <span className={s.repeatText}>
+                        생일은 매년 반복으로, 정기 미팅이나 루틴은 매주 반복으로 다시 보여줄 수 있어요.
+                      </span>
                     </div>
                   </>
                 ) : (
